@@ -26,9 +26,7 @@ That should do it for the setup part.
 ## Usage
 
 The script can read an environment variable called `SPOTLIGHT_DEST`, which determins where the images will be copied.
-If the variable is not provided, the platform-specific default destination will be used. See below for detailes about that.
-
-See below for detailed instructions regarding usage in Linux/Windows.
+If the variable is not provided, the platform-specific default destination will be used. See below for detailed instructions regarding usage on Linux and Windows.
 
 ### Linux
 
