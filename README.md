@@ -10,16 +10,15 @@ The only version of Window this was tested with was Widnows 10. No idea if Windo
 
 Download/clone the repo, and then install the dependencies by running something like:
 
+~~~
+ > bundle install --path vendor/bundle
+~~~
+
 ### Additional Linux requirements
 
 The script expects [`udisksctl`](https://www.freedesktop.org/wiki/Software/udisks/) ([`udisks2`](https://www.archlinux.org/packages/?name=udisks2) package for Arch Linux users) to be available for mounting Linux under certain conditions (see Linux usage for more details).
 
 However, if you mounted Windows yourself before running the script, `udisksctl` won't be required.
-
-
-~~~
- > bundle install --path vendor/bundle
-~~~
 
 That should do it for the setup part.
 
