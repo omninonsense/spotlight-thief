@@ -57,7 +57,7 @@ Default destination is `$HOME/Pictures/Spotlight`
 
 # Windows
 
-Just execute the script (without any arguments). It should work in theory, but it wasn't tested on Windows.
+Just execute the script (without any arguments). Tested and works on Windows 10 x64.
 
 Default destination is `%HOMEPATH%/Pictures/Spotlight`
 
