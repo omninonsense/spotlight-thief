@@ -8,35 +8,61 @@
 #
 
 require 'fileutils'
+require 'digest'
+require 'date'
 require 'exifr/jpeg'
 
 # Only used in Linux mode
 username = ARGV[0]
 source = ARGV[1]
 
-case RbConfig::CONFIG["host_os"]
-when /linux/
+ASSET_DIR = 'AppData/Local/Packages/Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy/LocalState/Assets'.freeze
 
+def categorise(image)
+  width = get_width(image)
+
+  case width
+  when 1920
+    'desktop'
+  when 1080
+    'mobile'
+  end
+end
+
+def get_width(file)
+  exif = EXIFR::JPEG.new(file)
+  exif.width
+rescue EXIFR::MalformedJPEG
+  nil
+end
+
+def are_equal(file1, file2)
+  Digest::SHA256.file(file1) == Digest::SHA256.file(file2)
+end
+
+
+case RbConfig::CONFIG['host_os']
+when /linux/
   if ARGV.length < 2
-    $stderr.puts "On linux you need to provide the username and source (partition, or mount point of Windows installation) to steal from."
-    $stderr.puts "For example:"
-    $stderr.puts "    steal.rb nino /dev/nvme1n1p4"
+    warn 'On linux you need to provide the username and source (partition, or mount point of Windows installation) to steal from.'
+    warn 'For example:'
+    warn '  steal.rb nino /dev/nvme1n1p4'
     exit 1
   end
 
   source_stat = File.stat(source)
 
   if source_stat.blockdev?
-    mount_result = %x(udisksctl mount -t ntfs -o ro -b #{source})
+    mount_result = `udisksctl mount -t ntfs -o ro -b #{source}`
     puts mount_result
 
-    match = mount_result.match(/Mounted #{source} at (\/run\/media\/#{ENV['USER']}\/\w+)\.$/)
+    match = mount_result.match(%r{Mounted #{source} at (\/run\/media\/#{ENV['USER']}\/\w+)\.$})
 
     if match
-        prefix = match[1]
-        at_exit { puts %x( udisksctl unmount -b #{source} ) }
+      prefix = match[1]
+      at_exit { puts `udisksctl unmount -b #{source}` }
     else
-      $stderr.puts "Error mounting #{source}"
+      warn "Error mounting #{source}"
       exit 2
     end
 
@@ -44,13 +70,11 @@ when /linux/
     prefix = source
   end
 
-
-  SRC = "#{prefix}/Users/#{username}/AppData/Local/Packages/Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy/LocalState/Assets"
-  DEST = ENV['SPOTLIGHT_DEST'] || "#{ENV['HOME']}/Pictures/Spotlight"
+  SRC = "#{prefix}/Users/#{username}/#{ASSET_DIR}".freeze
+  DEST = (ENV['SPOTLIGHT_DEST'] || "#{ENV['HOME']}/Pictures/Spotlight").freeze
 else
-  username = ENV['USERNAME']
-  SRC =  "#{ENV['HOMEPATH']}/AppData/Local/Packages/Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy/LocalState/Assets"
-  DEST = ENV['SPOTLIGHT_DEST'] || "#{ENV['HOMEPATH']}/Pictures/Spotlight"
+  SRC =  "#{ENV['HOMEPATH']}/#{ASSET_DIR}".freeze
+  DEST = (ENV['SPOTLIGHT_DEST'] || "#{ENV['HOMEPATH']}/Pictures/Spotlight").freeze
 end
 
 puts "SRC: #{SRC}"
@@ -58,36 +82,33 @@ puts "DEST: #{DEST}"
 
 # Create DEST dir
 FileUtils.mkdir_p DEST
-FileUtils.mkdir_p File.join(DEST, "desktop")
-FileUtils.mkdir_p File.join(DEST, "mobile")
-FileUtils.mkdir_p File.join(DEST, "other")
+FileUtils.mkdir_p File.join(DEST, 'desktop')
+FileUtils.mkdir_p File.join(DEST, 'mobile')
+FileUtils.mkdir_p File.join(DEST, 'other')
 
-files = Dir.entries(SRC)[2..-1]
-
-def qualify_destination_path(path, dest)
-    exif = EXIFR::JPEG.new(path)
-    final_name = File.basename(path) + '.jpg'
-
-    case(exif.width)
-    when 1920
-        return File.join(dest, "desktop", final_name)
-    when 1080
-        return File.join(dest, "mobile", final_name)
-    else
-        # return File.join(dest, "other", final_name)
-        return nil
-    end
-rescue EXIFR::MalformedJPEG => e
-    # puts "#{path} is not a valid JPG file"
-    return nil
-end
+files = Dir.entries(SRC).reject { |f| File.directory? f }
 
 print 'Stealing'
 files.each do |file|
-    sp = File.join(SRC, file)
-    dp = qualify_destination_path(sp, DEST)
-    FileUtils.copy(sp, dp) unless dp.nil?
-    print '.'
+  src = File.join(SRC, file)
+  category = categorise(src)
+
+  next if category.nil?
+
+  dest = File.join(DEST, category, "#{file}.jpg")
+
+  if File.exist?(dest)
+    if are_equal(src, dest)
+      print '.'
+      next
+    end
+
+    print '!'
+    dest = File.join(DEST, category, "#{file}-#{Date.today}.jpg")
+  end
+
+  FileUtils.copy(src, dest)
+  print '+'
 end
 
 puts
